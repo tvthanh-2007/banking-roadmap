@@ -291,20 +291,3 @@ PostgreSQL phát hiện vòng chờ (wait cycle) và rollback một transaction 
 * PostgreSQL sẽ rollback một transaction để phá vòng chờ.
 * Lock theo cùng thứ tự là cách đơn giản nhất để tránh Deadlock.
 * Trong hệ thống ngân hàng, transfer tiền là nơi dễ phát sinh Deadlock nhất.
-
----
-
-# Tiến độ
-
-```text
-Week 1
-
-✓ Day 1 - Index
-✓ Day 2 - EXPLAIN ANALYZE
-✓ Day 3 - Transaction + ACID + Lock
-✓ Day 4-5 - Deadlock
-
-Next:
-Day 6 - Java Setup
-Day 7 - Java Core
-```
