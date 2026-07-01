@@ -2,246 +2,241 @@
 
 ## 1. Bài toán
 
-Thiết kế hệ thống quản lý khách hàng:
+Thiết kế hệ thống quản lý khách hàng với các chức năng:
 
-Chức năng: - Tạo khách hàng - Cập nhật thông tin khách hàng - Tìm kiếm
-khách hàng - Xem thông tin khách hàng - Quản lý lịch sử liên quan
+- Tạo khách hàng
+- Cập nhật thông tin khách hàng
+- Tìm kiếm khách hàng
+- Xem thông tin khách hàng
+- Quản lý lịch sử liên quan
 
-Ví dụ banking:
+Ví dụ trong banking, entity `Customer` gồm:
 
-Customer: - id - name - phone - email - address - status - created_at
+- `id`
+- `name`
+- `phone`
+- `email`
+- `address`
+- `status`
+- `created_at`
 
-------------------------------------------------------------------------
+---
 
-# Level 1: Ít user (10k khách)
+## Level 1: Ít user (10k khách)
 
 Kiến trúc đơn giản:
 
+```
 Frontend
-
-↓
-
+   ↓
 Spring Boot
-
-↓
-
+   ↓
 PostgreSQL
+```
 
-Database:
+**Database** — bảng `customers`:
 
-customers
+- `id`
+- `name`
+- `phone`
+- `email`
 
--   id
--   name
--   phone
--   email
+**API:**
 
-API:
-
+```
 POST /customers
+GET  /customers/{id}
+PUT  /customers/{id}
+```
 
-GET /customers/{id}
+**Mục tiêu:**
 
-PUT /customers/{id}
+- Code đơn giản
+- Dễ maintain
+- Chưa cần scale phức tạp
 
-Mục tiêu: - code đơn giản - dễ maintain - chưa cần scale phức tạp
+---
 
-------------------------------------------------------------------------
+## Level 2: 1 triệu khách
 
-# Level 2: 1 triệu khách
-
-Bắt đầu có vấn đề:
+Bắt đầu có vấn đề về hiệu năng truy vấn.
 
 Ví dụ query:
 
-SELECT \* FROM customers WHERE phone='090xxxx'
+```sql
+SELECT * FROM customers WHERE phone = '090xxxx';
+```
 
-Cần index:
+Cần thêm index:
 
+```sql
 CREATE INDEX idx_customer_phone ON customers(phone);
+```
 
-Lợi ích: - tìm kiếm nhanh hơn - giảm full table scan
+**Lợi ích:**
 
-------------------------------------------------------------------------
+- Tìm kiếm nhanh hơn
+- Giảm full table scan
 
-# Pagination
+### Pagination
 
-Không lấy toàn bộ:
+Không lấy toàn bộ dữ liệu một lúc.
 
 Sai:
 
-SELECT \* FROM customers;
+```sql
+SELECT * FROM customers;
+```
 
 Đúng:
 
-SELECT \* FROM customers LIMIT 100 OFFSET 0;
+```sql
+SELECT * FROM customers LIMIT 100 OFFSET 0;
+```
 
 API:
 
+```
 GET /customers?page=1&size=100
+```
 
-------------------------------------------------------------------------
-
-# Search nâng cao
+### Search nâng cao
 
 Khi dữ liệu lớn:
 
-Không nên dùng:
+- **Không nên dùng:** `LIKE '%abc%'`
+- **Có thể dùng:**
+  - PostgreSQL Full Text Search
+  - Elasticsearch
 
-LIKE '%abc%'
+Flow đồng bộ dữ liệu sang search engine:
 
-Có thể dùng:
-
--   PostgreSQL Full Text Search
--   Elasticsearch
-
-Flow:
-
+```
 Customer DB
-
-↓
-
+   ↓
 Sync data
-
-↓
-
+   ↓
 Elasticsearch
-
-↓
-
+   ↓
 Search nhanh
+```
 
-------------------------------------------------------------------------
+---
 
-# Level 3: 10-100 triệu khách
+## Level 3: 10-100 triệu khách
 
-## Database Partition
+### Database Partition
 
 Chia bảng lớn thành nhiều phần:
 
-customers
-
-      \|
-  ----------
-   \| \| \|
-   1 P2 P3
+```
+      customers
+          |
+   ---------------
+   |      |      |
+   P1     P2     P3
+```
 
 Có thể partition theo:
 
--   customer_id
--   region
--   thời gian
+- `customer_id`
+- `region`
+- Thời gian
 
-Mục đích: - query nhanh hơn - quản lý dữ liệu lớn
+**Mục đích:**
 
-------------------------------------------------------------------------
+- Query nhanh hơn
+- Quản lý dữ liệu lớn dễ hơn
 
-# Redis Cache
+### Redis Cache
 
-Case:
-
-User xem profile nhiều lần.
+**Case:** User xem profile nhiều lần.
 
 Flow:
 
+```
 Request
-
-↓
-
+   ↓
 Redis
+   ↓
+Có cache?
+  ├─ Có   → trả về
+  └─ Không → query DB
+```
 
-↓
+Ví dụ cache key/value:
 
-Có cache? \| Có -\> trả về \| Không -\> query DB
-
-Ví dụ:
-
+```
 customer:100
+{ "id": 100, "name": "A" }
+```
 
-{ id:100, name:"A" }
+---
 
-------------------------------------------------------------------------
+## Level 4: Hệ thống lớn
 
-# Level 4: Hệ thống lớn
+Tách thành các service riêng:
 
-Tách service:
+```
+        API Gateway
+             |
+   -------------------------
+   |          |            |
+Customer   Account    Transaction
+Service    Service      Service
+```
 
-API Gateway
+**Customer Service** chịu trách nhiệm:
 
-        |
+- Thông tin khách hàng
+- Profile
+- KYC
+- Customer lifecycle
 
-  -------------------------
-  \| \| \|
-
-  Customer Account
-  Transaction Service
-  Service Service
-
-  Customer Service chịu
-  trách nhiệm:
-
-  \- thông tin khách hàng -
-  profile - KYC - customer
-  lifecycle
-  -------------------------
-
-# Database trong microservice
+### Database trong microservice
 
 Mỗi service có database riêng:
 
-Customer Service
+```
+Customer Service → Customer DB
+Account Service  → Account DB
+```
 
-↓
+Không chia sẻ database trực tiếp giữa các service.
 
-Customer DB
+---
 
-Account Service
+## Các vấn đề cần quan tâm
 
-↓
+### 1. Duplicate data
 
-Account DB
+Ví dụ: Transaction cần `customer_name`.
 
-Không chia sẻ database trực tiếp.
+Cách xử lý:
 
-------------------------------------------------------------------------
+- Gọi Customer Service để lấy dữ liệu, hoặc
+- Lưu snapshot dữ liệu cần thiết
 
-# Các vấn đề cần quan tâm
+### 2. Đồng bộ dữ liệu
 
-## 1. Duplicate data
+Có thể dùng event-driven:
 
-Ví dụ: Transaction cần customer_name.
-
-Có thể: - gọi Customer Service - lưu snapshot dữ liệu cần thiết
-
-------------------------------------------------------------------------
-
-## 2. Đồng bộ dữ liệu
-
-Có thể dùng:
-
-Event:
-
+```
 CustomerUpdated
-
-↓
-
+   ↓
 Kafka
-
-↓
-
+   ↓
 Các service cập nhật dữ liệu liên quan
+```
 
-------------------------------------------------------------------------
+---
 
-# Trả lời phỏng vấn VNPT
+## Trả lời phỏng vấn VNPT
 
-"Với hệ thống quản lý khách hàng, ban đầu em sẽ thiết kế monolith với
-Spring Boot và PostgreSQL.
-
-Khi dữ liệu tăng, em tối ưu bằng index, pagination, cache Redis.
-
-Nếu hệ thống lớn hơn có thể dùng Elasticsearch cho search, partition
-database để xử lý dữ liệu lớn.
-
-Khi cần scale độc lập theo nghiệp vụ thì tách Customer Service thành
-microservice."
+> "Với hệ thống quản lý khách hàng, ban đầu em sẽ thiết kế monolith với Spring Boot và PostgreSQL.
+>
+> Khi dữ liệu tăng, em tối ưu bằng index, pagination, cache Redis.
+>
+> Nếu hệ thống lớn hơn có thể dùng Elasticsearch cho search, partition database để xử lý dữ liệu lớn.
+>
+> Khi cần scale độc lập theo nghiệp vụ thì tách Customer Service thành microservice."
